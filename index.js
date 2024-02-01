@@ -1,7 +1,8 @@
+
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const img = new Image();
-img.src = `colortest.png`;
+img.src = `circle.png`;
 const width = 800;
 const height = 500;
 
