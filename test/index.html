@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Image Processor</title>
+    <style>
+      .container {
+        padding: 20px;
+        font-family: Arial, sans-serif;
+      }
+      .drop-zone {
+        width: 100%;
+        height: 100px;
+        border: 2px dashed #ccc;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        transition: border-color 0.3s ease;
+      }
+      .drop-zone.drag-over {
+        border-color: #007bff;
+        background-color: rgba(0, 123, 255, 0.1);
+      }
+      .drop-zone p {
+        color: #666;
+        margin: 0;
+      }
+      .canvas-container {
+        margin-top: 20px;
+      }
+      canvas {
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="drop-zone" id="dropZone">
+        <p>Drag and drop an image file here</p>
+      </div>
+      <div class="canvas-container">
+        <canvas id="canvas" width="800" height="500"></canvas>
+        <canvas id="canvas2" width="800" height="500"></canvas>
+      </div>
+    </div>
+
+    <script>
+      // Your original constants
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const width = 800;
+      const height = 500;
+      const xCenter = width / 2;
+      const yCenter = height / 2;
+      const ledSize = 2;
+      const numLED = 42;
+      const ledMaxRadius = 200;
+      const ledMinRadius = ledMaxRadius / 3.83;
+      const distBetweenLeds = (ledMaxRadius - ledMinRadius) / numLED;
+      const refreshRateAngle = 1;
+      const ledArray = [];
+      const canvas2 = document.getElementById("canvas2");
+      const ctx2 = canvas2.getContext("2d");
+      const preambleByte = 225;
+
+      ctx.arc(xCenter, yCenter, 20, 0, Math.PI);
+      ctx2.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, width, height);
+
+      const amp = 1;
+      const bias = 0;
+
+      // Your curve function
+      const curve = (c) => {
+        if (c < 50) return 0;
+        const x = (c / 255 - 0.5 + bias) * 2 * amp;
+        const absX = Math.abs(x);
+        const sign = x > 0 ? 1 : -1;
+        const curved = sign * (1 - Math.pow(Math.E, -1 * absX));
+        return Math.floor((0.5 + curved / 2) * 255);
+      };
+
+      // Image processing function (your original img.onload logic)
+      async function processImage(img) {
+        // Clear previous data
+        ctx.fillRect(0, 0, width, height);
+        ctx2.fillRect(0, 0, width, height);
+        const bufferLen = 60480;
+        const dataArray = [];
+
+        ctx2.drawImage(img, 150, 10, 500, 500);
+        const d = ctx2.getImageData(0, 0, width, height).data;
+
+        for (let i = 0; i < 360; i += refreshRateAngle) {
+          for (
+            let dist = ledMinRadius;
+            dist < ledMinRadius + distBetweenLeds * numLED;
+            dist += distBetweenLeds
+          ) {
+            const x = dist * Math.sin((i * Math.PI) / 180);
+            const y = dist * Math.cos((i * Math.PI) / 180);
+            const pixelNum =
+              (Math.round(y + yCenter) * width + Math.round(x + xCenter)) * 4;
+            const red = curve(d[pixelNum]);
+            const green = curve(d[pixelNum + 1]);
+            const blue = curve(d[pixelNum + 2]);
+            dataArray.push(preambleByte);
+            dataArray.push(blue);
+            dataArray.push(green);
+            dataArray.push(red);
+          }
+        }
+
+        for (
+          let dist = ledMinRadius;
+          dist < ledMinRadius + distBetweenLeds * numLED;
+          dist += distBetweenLeds
+        ) {
+          for (let i = 0; i < 360; i += refreshRateAngle) {
+            const x = dist * Math.sin((i * Math.PI) / 180);
+            const y = dist * Math.cos((i * Math.PI) / 180);
+            const pixelNum =
+              (Math.round(y + yCenter) * width + Math.round(x + xCenter)) * 4;
+            const red = curve(d[pixelNum]);
+            const green = curve(d[pixelNum + 1]);
+            const blue = curve(d[pixelNum + 2]);
+
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = `rgb(${red},${green},${blue})`;
+            ctx.beginPath();
+
+            ctx.arc(
+              xCenter,
+              yCenter,
+              dist,
+              (i * Math.PI) / 180 + Math.PI / 2,
+              (i * Math.PI) / 180 +
+                (refreshRateAngle * Math.PI) / 180 +
+                Math.PI / 2
+            );
+            ctx.stroke();
+          }
+        }
+
+        const buffer = new Uint8Array(dataArray);
+
+        const response = await fetch("http://192.168.4.1/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": buffer.length,
+            Connection: "close",
+          },
+          body: buffer,
+        });
+
+        const result = await response.text();
+
+        console.log(result);
+      }
+
+      // Drag and drop functionality
+      const dropZone = document.getElementById("dropZone");
+
+      // Prevent default drag behaviors
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+      });
+
+      // Highlight drop zone when item is dragged over it
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, highlight, false);
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+      });
+
+      // Handle dropped files
+      dropZone.addEventListener("drop", handleDrop, false);
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      function highlight(e) {
+        dropZone.classList.add("drag-over");
+      }
+
+      function unhighlight(e) {
+        dropZone.classList.remove("drag-over");
+      }
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const file = dt.files[0];
+
+        if (file && file.type.startsWith("image/")) {
+          const reader = new FileReader();
+
+          reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+              processImage(this);
+            };
+            img.src = e.target.result;
+          };
+
+          reader.readAsDataURL(file);
+        }
+      }
+    </script>
+  </body>
+</html>

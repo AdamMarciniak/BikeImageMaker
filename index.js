@@ -1,8 +1,7 @@
-
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const img = new Image();
-img.src = `circle.png`;
+img.src = `adamphoto2.png`;
 const width = 800;
 const height = 500;
 
@@ -24,10 +23,13 @@ ctx.arc(xCenter, yCenter, 20, 0, Math.PI);
 ctx2.fillRect(0, 0, width, height);
 ctx.fillRect(0, 0, width, height);
 
-const amp = 1;
+const amp = 2;
 const bias = 0;
 
 const curve = (c) => {
+  if (c < 65) {
+    return 0;
+  }
   const x = (c / 255 - 0.5 + bias) * 2 * amp;
   const absX = Math.abs(x);
   const sign = x > 0 ? 1 : -1;
@@ -54,9 +56,9 @@ img.onload = () => {
       const red = curve(d[pixelNum]);
       const green = curve(d[pixelNum + 1]);
       const blue = curve(d[pixelNum + 2]);
-      ledArray.push(red);
-      ledArray.push(green);
       ledArray.push(blue);
+      ledArray.push(green);
+      ledArray.push(red);
     }
   }
 
@@ -74,16 +76,6 @@ img.onload = () => {
       const green = curve(d[pixelNum + 1]);
       const blue = curve(d[pixelNum + 2]);
 
-      //console.log(d)
-      // const red = d[pixelNum][0]
-      // const green = d[pixelNum][1]
-      // const blue = d[pixelNum][2]
-      // ctx.fillStyle = `rgb(
-      //   ${red},
-      //   ${green},
-      //     ${blue})`
-
-      // ctx.fillRect(x + xCenter, y + yCenter, ledSize, ledSize)
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = `rgb(
         ${red},
@@ -102,16 +94,19 @@ img.onload = () => {
     }
   }
 
-  let str = `{`;
+  let str = `[`;
+  let i = 0;
   ledArray.forEach((num) => {
+    if (i % 3 == 0) {
+      str += "225, ";
+    }
+    i += 1;
     str += num;
     str += ",";
   });
   str = str.slice(0, -1);
-  str += "};";
+  str += "];";
 
   console.log(str);
   console.log(ledArray.length);
 };
-
-// 1 2 3 4 5 6 7 8 9
